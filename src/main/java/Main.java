@@ -21,16 +21,24 @@ public class Main {
 			ServerSocket ss = new ServerSocket(4221);
 			ss.setReuseAddress(true);
 			Socket cs = ss.accept();
-			HashMap<String, String[]> req = parseRequest(readStream(cs));
 
-			if (!req.get("method")[0].equals("GET")) {
+			HashMap<String, String> req = parseRequest(readStream(cs));
+			String[] path = req.get("path").split("/");
+			HashMap<String, String> headers = new HashMap<>();
+
+			String[] headerLines = req.get("headers").split("\n");
+			for (String headerLine : headerLines) {
+				String[] parts = headerLine.split(":", 2);
+				headers.put(parts[0].trim(), parts[1].trim());
+			}
+			if (!req.get("method").equals("GET")) {
 				cs.getOutputStream().write("HTTP/1.1 405 Method Not Allowed\r\n\r\n".getBytes(StandardCharsets.UTF_8));
-			} else if (req.get("path").length == 0) {
+			} else if (path[0].equals("")) {
 				cs.getOutputStream().write("HTTP/1.1 200 OK\r\n\r\n".getBytes(StandardCharsets.UTF_8));
-			} else if (req.get("path")[0].equals("echo")) {
+			} else if (path[0].equals("echo")) {
 				String content = "";
-				for (int i = 1; i < req.get("path").length; i++) {
-					content += req.get("path")[i] + "/";
+				for (int i = 1; i < path.length; i++) {
+					content += path[i] + "/";
 				}
 				String c = content.endsWith("/") ? content.substring(0, content.length() - 1) : content;
 
@@ -39,13 +47,21 @@ public class Main {
 						"Content-Length: " + c.length() + "\r\n\r\n" +
 						c;
 				cs.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
+			} else if (path[0].equals("user-agent")) {
+				String agent = headers.get("User-Agent");
+				String response = "HTTP/1.1 200 OK\r\n" +
+						"Content-Type: text/plain\r\n" +
+						"Content-Length: " + agent.length() + "\r\n\r\n" +
+						agent;
+				cs.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
 			} else {
 				cs.getOutputStream().write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes(StandardCharsets.UTF_8));
 			}
-			System.out.println("\naccepted new connection\n");
 		} catch (IOException e) {
 			System.out.println("IOException: " + e.getMessage() + "\n\n");
 		}
+
+		System.out.println("\naccepted new connection\n");
 	}
 
 	public String[] readStream(Socket cs) throws IOException {
@@ -62,21 +78,22 @@ public class Main {
 		return req.split("\r\n\r\n");
 	}
 
-	public HashMap<String, String[]> parseRequest(String[] request) {
-		HashMap<String, String[]> pr = new HashMap<>();
+	public HashMap<String, String> parseRequest(String[] request) {
+		HashMap<String, String> pr = new HashMap<>();
 
 		String[] req = request[0].split("\r\n");
 
-		pr.put("reqStr", new String[] { request[0] });
+		pr.put("reqStr", request[0]);
 
-		pr.put("method", new String[] { req[0].split(" ")[0] });
+		pr.put("method", req[0].split(" ")[0]);
 
-		pr.put("path", Arrays.stream(
+		String[] path = Arrays.stream(
 				req[0].split(" ")[1].split("/"))
 				.filter(p -> !p.isEmpty())
-				.toArray(String[]::new));
+				.toArray(String[]::new);
+		pr.put("path", String.join("/", path));
 
-		pr.put("httpVersion", new String[] { req[0].split(" ")[2].split("/")[1] });
+		pr.put("httpVersion", req[0].split(" ")[2].split("/")[1]);
 
 		String[] headers = new String[req.length - 1];
 		for (int i = 1; i < req.length; i++) {
@@ -90,9 +107,9 @@ public class Main {
 				headers[i - 1] = headerLine.trim(); // fallback for weird lines
 			}
 		}
-		pr.put("headers", headers);
+		pr.put("headers", String.join("\n", headers));
 
-		pr.put("body", new String[] { request.length > 1 ? request[1] : "" });
+		pr.put("body", request.length > 1 ? request[1] : "");
 
 		return pr;
 	}
