@@ -10,7 +10,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Main {
+	static String FILEPATH;
+
 	public static void main(String[] args) {
+		FILEPATH = args.length > 0 ? args[1] : "";
 		new Main();
 	}
 
@@ -20,11 +23,11 @@ public class Main {
 		try (ServerSocket ss = new ServerSocket(4221)) {
 			ss.setReuseAddress(true);
 
+			ExecutorService pool = Executors.newFixedThreadPool(50);
 			while (true) {
 				Socket cs = ss.accept();
 				System.out.println("\naccepted new connection\n");
 
-				ExecutorService pool = Executors.newFixedThreadPool(50);
 				pool.submit(() -> handleClient(cs));
 
 			}
@@ -62,6 +65,18 @@ public class Main {
 						"Content-Type: text/plain\r\n" +
 						"Content-Length: " + agent.length() + "\r\n\r\n" +
 						agent;
+			} else if (path[0].equals("files")) {
+				String file = FILEPATH + "/" + path[1];
+				String content = readFile(file);
+
+				if (content == null) {
+					response = "HTTP/1.1 404 Not Found\r\n\r\n";
+				} else {
+					response = "HTTP/1.1 200 OK\r\n" +
+							"Content-Type: application/octet-stream\r\n" +
+							"Content-Length: " + content.length() + "\r\n\r\n" +
+							content;
+				}
 			} else {
 				response = "HTTP/1.1 404 Not Found\r\n\r\n";
 			}
@@ -69,6 +84,16 @@ public class Main {
 			cs.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
 		} catch (IOException e) {
 			System.out.println("Client handling error: " + e.getMessage());
+		}
+	}
+
+	public String readFile(String filePath) {
+		try {
+			byte[] bytes = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(filePath));
+			return new String(bytes, StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			System.out.println("File read error: " + e.getMessage());
+			return null;
 		}
 	}
 
