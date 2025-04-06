@@ -1,13 +1,13 @@
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Main {
 	public static void main(String[] args) {
@@ -17,51 +17,59 @@ public class Main {
 	public Main() {
 		System.out.println("\n\n Server Start");
 
-		try {
-			ServerSocket ss = new ServerSocket(4221);
+		try (ServerSocket ss = new ServerSocket(4221)) {
 			ss.setReuseAddress(true);
-			Socket cs = ss.accept();
 
+			while (true) {
+				Socket cs = ss.accept();
+				System.out.println("\naccepted new connection\n");
+
+				ExecutorService pool = Executors.newFixedThreadPool(50);
+				pool.submit(() -> handleClient(cs));
+
+			}
+		} catch (IOException e) {
+			System.out.println("Server error: " + e.getMessage());
+		}
+	}
+
+	public void handleClient(Socket cs) {
+		try (cs) {
 			HashMap<String, String> req = parseRequest(readStream(cs));
 			String[] path = req.get("path").split("/");
 			HashMap<String, String> headers = new HashMap<>();
 
-			String[] headerLines = req.get("headers").split("\n");
-			for (String headerLine : headerLines) {
+			for (String headerLine : req.get("headers").split("\n")) {
 				String[] parts = headerLine.split(":", 2);
 				headers.put(parts[0].trim(), parts[1].trim());
 			}
-			if (!req.get("method").equals("GET")) {
-				cs.getOutputStream().write("HTTP/1.1 405 Method Not Allowed\r\n\r\n".getBytes(StandardCharsets.UTF_8));
-			} else if (path[0].equals("")) {
-				cs.getOutputStream().write("HTTP/1.1 200 OK\r\n\r\n".getBytes(StandardCharsets.UTF_8));
-			} else if (path[0].equals("echo")) {
-				String content = "";
-				for (int i = 1; i < path.length; i++) {
-					content += path[i] + "/";
-				}
-				String c = content.endsWith("/") ? content.substring(0, content.length() - 1) : content;
 
-				String response = "HTTP/1.1 200 OK\r\n" +
+			String response;
+
+			if (!req.get("method").equals("GET")) {
+				response = "HTTP/1.1 405 Method Not Allowed\r\n\r\n";
+			} else if (path.length == 0 || path[0].isEmpty()) {
+				response = "HTTP/1.1 200 OK\r\n\r\n";
+			} else if (path[0].equals("echo")) {
+				String content = String.join("/", Arrays.copyOfRange(path, 1, path.length));
+				response = "HTTP/1.1 200 OK\r\n" +
 						"Content-Type: text/plain\r\n" +
-						"Content-Length: " + c.length() + "\r\n\r\n" +
-						c;
-				cs.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
+						"Content-Length: " + content.length() + "\r\n\r\n" +
+						content;
 			} else if (path[0].equals("user-agent")) {
-				String agent = headers.get("User-Agent");
-				String response = "HTTP/1.1 200 OK\r\n" +
+				String agent = headers.getOrDefault("User-Agent", "");
+				response = "HTTP/1.1 200 OK\r\n" +
 						"Content-Type: text/plain\r\n" +
 						"Content-Length: " + agent.length() + "\r\n\r\n" +
 						agent;
-				cs.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
 			} else {
-				cs.getOutputStream().write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+				response = "HTTP/1.1 404 Not Found\r\n\r\n";
 			}
-		} catch (IOException e) {
-			System.out.println("IOException: " + e.getMessage() + "\n\n");
-		}
 
-		System.out.println("\naccepted new connection\n");
+			cs.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
+		} catch (IOException e) {
+			System.out.println("Client handling error: " + e.getMessage());
+		}
 	}
 
 	public String[] readStream(Socket cs) throws IOException {
