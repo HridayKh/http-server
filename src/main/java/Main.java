@@ -1,4 +1,6 @@
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
@@ -6,6 +8,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -38,52 +41,98 @@ public class Main {
 
 	public void handleClient(Socket cs) {
 		try (cs) {
-			HashMap<String, String> req = parseRequest(readStream(cs));
-			String[] path = req.get("path").split("/");
-			HashMap<String, String> headers = new HashMap<>();
+			HashMap<String, String> request = parseRequest(readStream(cs));
+			String[] path = request.get("path").split("/");
+			HashMap<String, String> headerMap = new HashMap<>();
 
-			for (String headerLine : req.get("headers").split("\n")) {
+			for (String headerLine : request.get("headers").split("\n")) {
 				String[] parts = headerLine.split(":", 2);
-				headers.put(parts[0].trim(), parts[1].trim());
+				headerMap.put(parts[0].trim(), parts[1].trim());
 			}
 
-			String response;
+			String response = null;
 
-			if (!req.get("method").equals("GET")) {
-				response = "HTTP/1.1 405 Method Not Allowed\r\n\r\n";
-			} else if (path.length == 0 || path[0].isEmpty()) {
-				response = "HTTP/1.1 200 OK\r\n\r\n";
-			} else if (path[0].equals("echo")) {
-				String content = String.join("/", Arrays.copyOfRange(path, 1, path.length));
-				response = "HTTP/1.1 200 OK\r\n" +
-						"Content-Type: text/plain\r\n" +
-						"Content-Length: " + content.length() + "\r\n\r\n" +
-						content;
-			} else if (path[0].equals("user-agent")) {
-				String agent = headers.getOrDefault("User-Agent", "");
-				response = "HTTP/1.1 200 OK\r\n" +
-						"Content-Type: text/plain\r\n" +
-						"Content-Length: " + agent.length() + "\r\n\r\n" +
-						agent;
-			} else if (path[0].equals("files")) {
-				String file = FILEPATH + "/" + path[1];
-				String content = readFile(file);
+			List<Route> routes = List.of(
+					new Route("GET", "", (_, _) -> "HTTP/1.1 200 OK\r\n\r\n"),
 
-				if (content == null) {
-					response = "HTTP/1.1 404 Not Found\r\n\r\n";
-				} else {
-					response = "HTTP/1.1 200 OK\r\n" +
-							"Content-Type: application/octet-stream\r\n" +
-							"Content-Length: " + content.length() + "\r\n\r\n" +
-							content;
+					new Route("GET", "echo", (_, _) -> {
+						String content = String.join("/", Arrays.copyOfRange(path, 1, path.length));
+						return "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content.length()
+								+ "\r\n\r\n" + content;
+					}),
+
+					new Route("GET", "user-agent", (_, headers) -> {
+						String agent = headers.getOrDefault("User-Agent", "");
+						return "HTTP/1.1 200 OK\r\n" +
+								"Content-Type: text/plain\r\n" +
+								"Content-Length: " + agent.length() + "\r\n\r\n" +
+								agent;
+					}),
+
+					new Route("GET", "files", (_, _) -> {
+						String file = FILEPATH + "/" + path[1];
+						String content = readFile(file);
+						if (content == null) {
+							return "HTTP/1.1 404 Not Found\r\n\r\n";
+						} else {
+							return "HTTP/1.1 200 OK\r\n" +
+									"Content-Type: application/octet-stream\r\n" +
+									"Content-Length: " + content.length() + "\r\n\r\n" +
+									content;
+						}
+					}),
+
+					new Route("POST", "files", (req, headers) -> {
+						String file = FILEPATH + "/" + path[1];
+						String content = req.get("body");
+
+						String lengthStr = headers.get("Content-Length");
+						if (lengthStr == null || Integer.parseInt(lengthStr) != content.length()) {
+							return "HTTP/1.1 400 Bad Request\r\n\r\n";
+						}
+						createFile(file, content);
+
+						return "HTTP/1.1 201 Created\r\n\r\n";
+					}));
+
+			for (Route route : routes) {
+				if (request.get("method").equals(route.method) && request.get("path").startsWith(route.pathPrefix)) {
+					response = route.handler.handle(request, headerMap);
+					break;
 				}
-			} else {
-				response = "HTTP/1.1 404 Not Found\r\n\r\n";
+			}
+			if (response == null) {
+				if (!request.get("method").equals("GET")) {
+					response = "HTTP/1.1 405 Method Not Allowed\r\n\r\n";
+				} else {
+					response = "HTTP/1.1 404 Not Found\r\n\r\n";
+				}
 			}
 
 			cs.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
 		} catch (IOException e) {
 			System.out.println("Client handling error: " + e.getMessage());
+		}
+	}
+
+	public void createFile(String filePath, String content) {
+		try {
+			File file = new File(filePath);
+
+			// Create parent directories if they don't exist
+			File parentDir = file.getParentFile();
+			if (parentDir != null && !parentDir.exists()) {
+				parentDir.mkdirs(); // make all parent directories
+			}
+
+			// Now write to file
+			FileWriter myWriter = new FileWriter(file);
+			myWriter.write(content);
+			myWriter.close();
+			System.out.println("Successfully wrote to the file.");
+		} catch (IOException e) {
+			System.out.println("An error occurred.");
+			e.printStackTrace();
 		}
 	}
 
@@ -102,13 +151,28 @@ public class Main {
 		StringBuilder sb = new StringBuilder();
 		String line;
 
+		int contentLength = 0;
+
+		// Read headers
 		while ((line = reader.readLine()) != null) {
 			sb.append(line).append("\r\n");
+			if (line.toLowerCase().startsWith("content-length:")) {
+				contentLength = Integer.parseInt(line.split(":")[1].trim());
+			}
 			if (line.isEmpty())
-				break;
+				break; // End of headers
 		}
+
 		String req = sb.toString();
-		return req.split("\r\n\r\n");
+
+		// Read body
+		char[] bodyChars = new char[contentLength];
+		reader.read(bodyChars);
+		sb.append(bodyChars);
+
+		String body = new String(bodyChars); // separate from headers
+
+		return new String[] { req, body };
 	}
 
 	public HashMap<String, String> parseRequest(String[] request) {

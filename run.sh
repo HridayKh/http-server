@@ -22,7 +22,5 @@ set -e # Exit early if any commands fail
 # - Edit this to change how your program runs locally
 # - Edit .codecrafters/run.sh to change how your program runs remotely
 
-set -e # Exit on failure
-
 exec java -jar /tmp/codecrafters-build-http-server-java/codecrafters-http-server.jar "$@"
 
