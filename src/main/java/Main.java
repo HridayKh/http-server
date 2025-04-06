@@ -6,6 +6,8 @@ import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.HashMap;
 
 public class Main {
 	public static void main(String[] args) {
@@ -19,38 +21,26 @@ public class Main {
 			ServerSocket ss = new ServerSocket(4221);
 			ss.setReuseAddress(true);
 			Socket cs = ss.accept();
-			String[] req = readStream(cs);
-			String reqString = "Request: ";
-			for (String r : req) {
-				reqString += r + "\r\n";
-			}
-			System.out.println(reqString);
-			// GET /abcdefg HTTP/1.1\r\n
-			// Host: localhost:4221\r\n
-			// User-Agent: curl/7.81.0\r\n
-			// Accept: */*\r\n\r\n
+			HashMap<String, String[]> req = parseRequest(readStream(cs));
 
-			String method = req[0].split(" ")[0];
-			String path = req[0].split(" ")[1];
-			String httpVersion = req[0].split(" ")[2].split("/")[1];
+			if (!req.get("method")[0].equals("GET")) {
+				cs.getOutputStream().write("HTTP/1.1 405 Method Not Allowed\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+			} else if (req.get("path").length == 0) {
+				cs.getOutputStream().write("HTTP/1.1 200 OK\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+			} else if (req.get("path")[0].equals("echo")) {
+				String content = "";
+				for (int i = 1; i < req.get("path").length; i++) {
+					content += req.get("path")[i] + "/";
+				}
+				String c = content.endsWith("/") ? content.substring(0, content.length() - 1) : content;
 
-			String[][] headers = new String[req.length - 1][2];
-			for (int i = 1; i < req.length; i++) {
-				headers[i - 1] = req[i].replace(": ", ":").split(":");
-			}
-
-			System.out.println("Method: " + method);
-			System.out.println("Path: " + path);
-			System.out.println("HTTP Version: " + httpVersion);
-			System.out.println("Headers: ");
-			for (String[] header : headers) {
-				System.out.println("\t" + header[0] + ": " + header[1]);
-			}
-
-			if (method.equals("GET") && path.equals("/")) {
-				cs.getOutputStream().write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
+				String response = "HTTP/1.1 200 OK\r\n" +
+						"Content-Type: text/plain\r\n" +
+						"Content-Length: " + c.length() + "\r\n\r\n" +
+						c;
+				cs.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
 			} else {
-				cs.getOutputStream().write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+				cs.getOutputStream().write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes(StandardCharsets.UTF_8));
 			}
 			System.out.println("\naccepted new connection\n");
 		} catch (IOException e) {
@@ -69,7 +59,42 @@ public class Main {
 				break;
 		}
 		String req = sb.toString();
-		return req.split("\r\n");
+		return req.split("\r\n\r\n");
+	}
+
+	public HashMap<String, String[]> parseRequest(String[] request) {
+		HashMap<String, String[]> pr = new HashMap<>();
+
+		String[] req = request[0].split("\r\n");
+
+		pr.put("reqStr", new String[] { request[0] });
+
+		pr.put("method", new String[] { req[0].split(" ")[0] });
+
+		pr.put("path", Arrays.stream(
+				req[0].split(" ")[1].split("/"))
+				.filter(p -> !p.isEmpty())
+				.toArray(String[]::new));
+
+		pr.put("httpVersion", new String[] { req[0].split(" ")[2].split("/")[1] });
+
+		String[] headers = new String[req.length - 1];
+		for (int i = 1; i < req.length; i++) {
+			String headerLine = req[i];
+			int colonIndex = headerLine.indexOf(':');
+			if (colonIndex != -1) {
+				String name = headerLine.substring(0, colonIndex).trim();
+				String value = headerLine.substring(colonIndex + 1).trim();
+				headers[i - 1] = name + ":" + value;
+			} else {
+				headers[i - 1] = headerLine.trim(); // fallback for weird lines
+			}
+		}
+		pr.put("headers", headers);
+
+		pr.put("body", new String[] { request.length > 1 ? request[1] : "" });
+
+		return pr;
 	}
 
 }
