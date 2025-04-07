@@ -41,7 +41,7 @@ public class Main {
 
 	public void handleClient(Socket cs) {
 		try (cs) {
-			HashMap<String, String> request = parseRequest(readStream(cs));
+			HashMap<String,String> request = parseRequest(readStream(cs));
 			String[] path = request.get("path").split("/");
 			HashMap<String, String> headerMap = new HashMap<>();
 
@@ -73,7 +73,7 @@ public class Main {
 						String file = FILEPATH + "/" + path[1];
 						String content = readFile(file);
 						if (content == null) {
-							return "HTTP/1.1 404 Not Found\r\n\r\n";
+							return "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\n";
 						} else {
 							return "HTTP/1.1 200 OK\r\n" +
 									"Content-Type: application/octet-stream\r\n" +
@@ -96,19 +96,20 @@ public class Main {
 					}));
 
 			for (Route route : routes) {
-				if (request.get("method").equals(route.method) && request.get("path").startsWith(route.pathPrefix)) {
+				if (request.get("method").equals(route.method) &&
+					(request.get("path").equals(route.pathPrefix) || request.get("path").startsWith(route.pathPrefix + "/"))) {
 					response = route.handler.handle(request, headerMap);
 					break;
 				}
 			}
 			if (response == null) {
+				System.out.println("No matching route found for method: " + request.get("method") + ", path: " + request.get("path"));
 				if (!request.get("method").equals("GET")) {
 					response = "HTTP/1.1 405 Method Not Allowed\r\n\r\n";
 				} else {
 					response = "HTTP/1.1 404 Not Found\r\n\r\n";
 				}
 			}
-
 			cs.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
 		} catch (IOException e) {
 			System.out.println("Client handling error: " + e.getMessage());
