@@ -41,7 +41,7 @@ public class Main {
 
 	public void handleClient(Socket cs) {
 		try (cs) {
-			HashMap<String, String> request = parseRequest(readStream(cs));
+			HashMap<String,String> request = parseRequest(readStream(cs));
 			String[] path = request.get("path").split("/");
 			HashMap<String, String> headerMap = new HashMap<>();
 
@@ -98,7 +98,7 @@ public class Main {
 			for (Route route : routes) {
 				if (request.get("method").equals(route.method) && request.get("path").startsWith(route.pathPrefix)) {
 					response = route.handler.handle(request, headerMap);
-					break;
+					break;    
 				}
 			}
 			if (response == null) {
@@ -108,7 +108,6 @@ public class Main {
 					response = "HTTP/1.1 404 Not Found\r\n\r\n";
 				}
 			}
-
 			cs.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
 		} catch (IOException e) {
 			System.out.println("Client handling error: " + e.getMessage());
