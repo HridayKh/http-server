@@ -99,7 +99,7 @@ public class Main {
 				if (request.get("method").equals(route.method) &&
 					(request.get("path").equals(route.pathPrefix) || request.get("path").startsWith(route.pathPrefix + "/"))) {
 					response = route.handler.handle(request, headerMap);
-					break;
+					break;    
 				}
 			}
 			if (response == null) {
