@@ -14,7 +14,6 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 
-	
 
 	<build>
 		<plugins>
@@ -23,7 +22,7 @@
 				<artifactId>exec-maven-plugin</artifactId>
 				<version>3.1.0</version>
 				<configuration>
-					<mainClass>com.example.Main</mainClass>
+					<mainClass>in.HridayKh.Main</mainClass>
 				</configuration>
 				<executions>
 					<execution>

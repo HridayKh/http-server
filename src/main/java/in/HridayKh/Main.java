@@ -5,5 +5,9 @@ public class Main {
 		System.out.println("Hello, World!");
 	}
 
+	
+	public void greet() {
+		System.out.println("Greetings from HridayKh!");
+	}
 
 }
