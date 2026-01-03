@@ -18,15 +18,6 @@ import java.util.Optional;
 public class ConfigLoader {
 
 	/**
-	 * Default resource name to load from the classpath.
-	 *
-	 * Why: keep a single, explicit constant so tests or future changes can
-	 * override it in one place and callers don't need to remember the file
-	 * name string literal.
-	 */
-	private static final String DEFAULT_RESOURCE = "application.properties";
-
-	/**
 	 * In-memory storage of loaded properties.
 	 *
 	 * Why: using java.util.Properties is a simple, well-known representation
@@ -35,14 +26,7 @@ public class ConfigLoader {
 	 */
 	private final Properties props = new Properties();
 
-	/**
-	 * Eager singleton instance.
-	 *
-	 * Why eager/singleton: configuration is needed early and shared across
-	 * components. Eager instantiation keeps the code simple and thread-safe
-	 * without synchronization.
-	 */
-	private static final ConfigLoader INSTANCE = new ConfigLoader();
+	private String DEFAULT_RESOURCE;
 
 	/**
 	 * Private constructor so callers must use {@link #getInstance()}.
@@ -50,17 +34,8 @@ public class ConfigLoader {
 	 * Why: enforcing a single instance reduces accidental multiple loads and
 	 * ensures consistent configuration throughout the process.
 	 */
-	private ConfigLoader() {
-		load(); // load immediately so config is available at startup
-	}
-
-	/**
-	 * Retrieve the singleton instance.
-	 *
-	 * Why: simple global access point for configuration consumers.
-	 */
-	public static ConfigLoader getInstance() {
-		return INSTANCE;
+	public ConfigLoader(String resource) {
+		this.DEFAULT_RESOURCE = resource;
 	}
 
 	/**
@@ -71,7 +46,8 @@ public class ConfigLoader {
 	 * are intentionally ignored because absence of a properties file should
 	 * not crash the application; callers can rely on defaults instead.
 	 */
-	private void load() {
+	public void load() {
+		props.clear();
 		try (InputStream in = getClass().getClassLoader().getResourceAsStream(DEFAULT_RESOURCE)) {
 			if (in != null)
 				props.load(in);
@@ -144,18 +120,5 @@ public class ConfigLoader {
 		Properties copy = new Properties();
 		copy.putAll(this.props);
 		return copy;
-	}
-
-	/**
-	 * Reload properties from the resource.
-	 *
-	 * Why: allow the running application to refresh configuration if the
-	 * underlying resource changes (useful for development or simple hot
-	 * reload scenarios). This clears the previous properties first to avoid
-	 * stale keys.
-	 */
-	public void reload() {
-		props.clear();
-		load();
 	}
 }

@@ -13,35 +13,30 @@ import in.HridayKh.DI.ReflectionMetas.SingletonMeta;
 
 public class Registry {
 
-	public static final Registry INSTANCE = new Registry();
-
-	private Registry(){
-
+	public Registry() {
+		
 	}
 
-	public static Registry getInstance(){
-		return INSTANCE;
-	}
 
 	/* ================= CONFIG ================= */
 
-	// All @Config injection points
-	public static final List<ConfigInjectionPoint> configInjectionPoints = new ArrayList<>();
+	// All @Config injection points (field-level)
+	public final List<ConfigInjectionPoint> configInjectionPoints = new ArrayList<>();
 
 	/* ================= DI ================= */
 
-	// All singleton classes discovered
-	public static final Map<Class<?>, SingletonMeta> singletons = new HashMap<>();
+	// All singleton classes discovered (class-level)
+	public final Map<Class<?>, SingletonMeta> singletons = new HashMap<>();
 
-	// All @Inject field locations
-	public static final List<InjectPoint> injectPoints = new ArrayList<>();
+	// All @Inject field locations (field-level)
+	public final List<InjectPoint> injectPoints = new ArrayList<>();
 
 	/* ================= HTTP ================= */
 
-	// Base paths on classes
-	public static final Map<Class<?>, ClassLevelPathMeta> classLevelPaths = new HashMap<>();
+	// Base paths on classes (class-level)
+	public final Map<Class<?>, ClassLevelPathMeta> classLevelPaths = new HashMap<>();
 
 	// All HTTP routes (method-level)
-	public static final List<MethodLevelPathMeta> methodLevelPaths = new ArrayList<>();
+	public final List<MethodLevelPathMeta> methodLevelPaths = new ArrayList<>();
 
 }

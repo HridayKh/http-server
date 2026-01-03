@@ -12,7 +12,7 @@ import java.lang.annotation.ElementType;
  * <p>
  * Attributes:
  * <ul>
- * <li><b>weight</b> — an integer priority for this singleton. Higher values
+ * <li><b>order</b> — an integer priority for this singleton. Higher values
  * denote higher priority when the container must choose between multiple
  * candidate singletons. Defaults to 0.</li>
  * </ul>
@@ -22,7 +22,7 @@ import java.lang.annotation.ElementType;
  * Example:
  * 
  * <pre>{@code
- * &#64;Singleton(weight = 5)
+ * &#64;Singleton(order = 5)
  * public class MyService { ... }
  * }</pre>
  *
@@ -31,7 +31,7 @@ import java.lang.annotation.ElementType;
 @Target(ElementType.TYPE)
 public @interface Singleton {
 	/**
-	 * Weight of the singleton instance, higher weight means higher priority
+	 * Order of the singleton instance, higher order means higher priority
 	 */
-	int weight() default 0;
+	int order() default 0;
 }

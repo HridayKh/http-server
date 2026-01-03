@@ -10,26 +10,27 @@ import in.HridayKh.config.ConfigLoader;
 
 public class Http {
 
-	private static final Http INSTANCE = new Http();
 	private static HttpServer server = null;
 
-	private Http() {
+	private ConfigLoader config = null;
+
+	public Http(ConfigLoader config) {
+		this.config = config;
 	}
 
 	public void createServer() {
-		System.out.println("HTTP Server Starting...");
-
 		long startTime = System.currentTimeMillis();
 
-		int port = ConfigLoader.getInstance().getInt("server.port", 8080);
-
+		int port = config.getInt("server.port", 8080);
+		
+		System.out.println("HTTP Server Starting on port " + port + "...");
 		try {
 			server = HttpServer.create();
 			server.bind(new InetSocketAddress(port), 0);
 		} catch (IOException e) {
 			e.printStackTrace();
 			long endTime = System.currentTimeMillis();
-			System.out.println("HTTP Server Start Failed in " + (endTime - startTime) + " ms");
+			System.out.println("HTTP Server Start Failed in " + (endTime - startTime) + " ms on port " + port);
 			return;
 		}
 
@@ -50,9 +51,5 @@ public class Http {
 		}
 		long endTime = System.currentTimeMillis();
 		System.out.println("HTTP Server Killed in " + (endTime - startTime) + " ms");
-	}
-
-	public static Http getInstance() {
-		return INSTANCE;
 	}
 }
