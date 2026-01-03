@@ -1,13 +1,11 @@
 package in.HridayKh;
+
+import in.HridayKh.http.Http;
+
 public class Main {
 
 	public static void main(String[] args) {
-		System.out.println("Hello, World!");
-	}
-
-	
-	public void greet() {
-		System.out.println("Greetings from HridayKh!");
+		Http.getInstance().createServer();;
 	}
 
 }
